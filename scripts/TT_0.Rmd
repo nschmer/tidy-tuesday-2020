@@ -1,0 +1,93 @@
+---
+title: 'Tidy tuesday 0: 2019-12-31'
+author: "Natalie Schmer"
+date: "12/31/2019"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+It's techincally not 2020 yet, but I'm counting this as my first TT of 2020
+
+I love B99, and my favorite episode is when Jake proposes to Amy (s05e04- HalloVeen) and I'm not great at text analysis sooo here goes!
+
+```{r}
+
+library(tidyverse)
+library(textreadr)
+library(SentimentAnalysis)
+library(tm)
+library(ggwordcloud)
+
+#read in text file of sript
+#script from: https://www.springfieldspringfield.co.uk/view_episode_scripts.php?tv-show=brooklyn-nine-nine&episode=s05e04
+script2 <- striprtf::read_rtf("data/b99_halloveen_tt0.rtf")
+
+# script <- read_delim("data/b99_halloveen_tt0.rtf", 
+#     "\\", escape_double = FALSE, col_names = FALSE, 
+#     trim_ws = TRUE, skip = 11)
+```
+
+```{r}
+#data cleaning
+#used a lot from: https://towardsdatascience.com/a-light-introduction-to-text-analysis-in-r-ea291a9865a8 
+
+b99 <- tm::SimpleCorpus(VectorSource(script$X1))
+
+# 1. Stripping any extra white space:
+dfCorpus <- tm_map(b99, stripWhitespace)
+# 2. Transforming everything to lowercase
+dfCorpus <- tm_map(dfCorpus, content_transformer(tolower))
+# 3. Removing numbers 
+dfCorpus <- tm_map(dfCorpus, removeNumbers)
+# 4. Removing punctuation
+dfCorpus <- tm_map(dfCorpus, removePunctuation)
+# 5. Removing stop words
+dfCorpus <- tm_map(dfCorpus, removeWords, stopwords("english"))
+
+#Make into lists of words and calculate occurances 
+DTM <- DocumentTermMatrix(dfCorpus)
+sums <- as.data.frame(colSums(as.matrix(DTM)))
+sums <- rownames_to_column(sums)
+colnames(sums) <- c("term", "count")
+sums <- dplyr::arrange(sums, desc(count))
+sums <- sums %>% 
+            slice(4:900)
+
+#Get top 50 words 
+head <- sums[1:50,]
+
+```
+
+```{r}
+#Plots
+
+#Bar chart 
+ggplot(data= head, aes(x= reorder(term, -count), y= count))+
+  geom_bar(stat = "identity")+
+  ggthemes::theme_few()+
+  theme(axis.text.x = element_text(angle = 70, hjust = 1))+
+  labs(title ="50 Top words in HalloVeen (S5E4, Brooklyn 99)",
+       y= "Count",
+       x= "Word")
+
+
+#Wordcloud 
+#Use: 
+#ggwordcloud: https://cran.r-project.org/web/packages/ggwordcloud/vignettes/ggwordcloud.html
+
+words <- ggplot(data=head, aes(label = term, size = count, color=count)) +
+  geom_text_wordcloud_area(rm_outside = TRUE) +
+  scale_size_area(max_size = 10) +
+  theme_minimal()
+ 
+
+#I wanted to animate the word cloud but plotly::ggplotly(words) apparently is not integrated with ggwordcoulds yet :( (error: geom_GeomTextWordcloud() has yet to be implemented in plotly)
+
+#non- ggplot word cloud
+
+wordcloud::wordcloud(words = head$term, freq = head$count, min.freq = 1000,
+  max.words=100, random.order=FALSE, rot.per=0.01, 
+  colors=brewer.pal(8, "Dark2"))
+```
+
